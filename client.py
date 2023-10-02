@@ -1,5 +1,8 @@
 import time
 import pickle
+import io
+import PIL.Image as Image
+from PIL import UnidentifiedImageError, ImageFile
 from client_settings import *
 
 
@@ -8,8 +11,16 @@ class Client:
     SERVER_HOST = "192.168.0.246"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
+    sz = 1024 * 1024 * 10
 
     def __init__(self, chat):
+
+        self.window = QLabel()
+        self.window.resize(700, 500)
+        self.window.show()
+
+        self.cam_port = 0
+        self.cam = cv2.VideoCapture(self.cam_port)
         self.chat = chat
         self.s = socket.socket()
         self.chat.text_main = f'''<span style="color:green;">[*] Connecting to {self.SERVER_HOST}:{self.SERVER_PORT}...</span><br>'''
@@ -17,7 +28,8 @@ class Client:
         try:
             self.s.connect((self.SERVER_HOST, self.SERVER_PORT))
             self.s.send(pickle.dumps([self.name, "command:start", datetime.now()]))
-            self.chat.text_main = f'''{pickle.loads(self.s.recv(1024*1024*8))[1]}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
+            l = pickle.loads(self.s.recv(self.sz))
+            self.chat.text_main = f'''{l[1] if len(l) > 1 else l}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
 
         except Exception as error:
             self.chat.text_main += f'''<span style="color:green;">ERROR: {error}</span><br>'''
@@ -27,7 +39,7 @@ class Client:
         self.messages = []
         self.ts = []
         self.thr = True
-        self.thread_([self.send, self.listen1])
+        self.thread_([self.send, self.listen1, self.send2])
 
     def thread_(self, args):
         for arg in args:
@@ -40,16 +52,18 @@ class Client:
 
     def listen1(self):
         while self.thr:
-            recv = self.s.recv(1024*1024*8)
-            get = pickle.loads(recv)
-            print(get)
-            if len(get) > 1:
-                print(get[0])
-                self.old_message = get[1]
-                self.set_time(get[2])
-            else:
-                self.chat.parent.tabled(get)
-
+            recv = self.s.recv(self.sz)
+            try:
+                img = Image.open(io.BytesIO(recv))
+                img.save(f'image1.png')
+                self.window.setPixmap(QPixmap('image1.png'))
+            except UnidentifiedImageError:
+                get = pickle.loads(recv)
+                if len(get) > 1:
+                    self.old_message = get[1]
+                    self.set_time(get[2])
+                else:
+                    self.chat.parent.tabled(get[0])
 
     def send(self):
         while self.thr:
@@ -66,7 +80,23 @@ class Client:
             else:
                 date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self.s.send(pickle.dumps([self.name, to_send, date_now]))
-            time.sleep(1)
+            time.sleep(.5)
+
+    def send2(self):
+        while self.thr:
+            result, image = self.cam.read()
+
+            if result:
+                # pyautogui.screenshot('image_server.png')
+                cv2.imwrite("image_server.png", image)
+                im = Image.open("image_server.png")
+                im2 = im.resize((240, 180))
+                im2.save('image_server.png')
+                file = open('image_server.png', mode="rb")
+
+                data = file.read(self.sz)
+                self.s.sendall(data)
+                file.close()
 
 
 class WidgetCharacteristic(QWidget):

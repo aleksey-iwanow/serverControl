@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtWebEngineWidgets import *
 from textRedactor import Ui_MainWindow
+import cv2
 
 
 base_style = """
