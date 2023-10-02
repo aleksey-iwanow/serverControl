@@ -1,4 +1,5 @@
 import socket
+import time
 from threading import Thread
 import pickle
 
@@ -28,27 +29,38 @@ def listen(cs):
     global DATA, check_run
     while True:
         try:
-            msg = pickle.loads(cs.recv(1025))
+            msg = pickle.loads(cs.recv(1024*1024*8))
         except Exception as e:
             print(f"[!] Error: {e}")
             client_sockets.remove(cs)
             break
-        spl = msg[1].split(':')
-        data_list = [[c.getsockname() for c in client_sockets], "", msg[2]]
+        sys_info = [c.getsockname() for c in client_sockets]
+        if msg:
+            spl = msg[1].split(':')
+            data_list = [sys_info, "", msg[2]]
 
-        if len(spl) > 1 and spl[0] == "command":
-            if spl[1] == "start":
-                data_list[1] = DATA
-                cs.send(pickle.dumps(data_list))
-            if spl[1] == "kill":
-                data_list[1] = "[*] Остановка сервера!"
-                cs.send(pickle.dumps(data_list))
-                q()
-        else:
-            data_list[1] = ": ".join(msg[:-1])
-            DATA += f'{data_list[1]}<br>'
-            for client_socket in client_sockets:
-                client_socket.send(pickle.dumps(data_list))
+            if len(spl) > 1 and spl[0] == "command":
+                if spl[1] == "start":
+                    data_list[1] = DATA
+                    cs.send(pickle.dumps(data_list))
+                if spl[1] == "kill":
+                    data_list[1] = "[*] Остановка сервера!"
+                    cs.send(pickle.dumps(data_list))
+                    q()
+            else:
+                data_list[1] = ": ".join(msg[:-1])
+                DATA += f'{data_list[1]}<br>'
+                for client_socket in client_sockets:
+                    client_socket.send(pickle.dumps(data_list))
+
+
+def send(cs):
+    while True:
+        try:
+            cs.send(pickle.dumps([c.getsockname() for c in client_sockets]))
+            time.sleep(.5)
+        except:
+            pass
 
 
 while check_run != "q":
@@ -57,6 +69,8 @@ while check_run != "q":
     client_sockets.add(client_socket)
     t = Thread(target=listen, args=(client_socket,))
     t.start()
+    t2 = Thread(target=send, args=(client_socket,))
+    t2.start()
 
 for cs in client_sockets:
     cs.close()

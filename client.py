@@ -17,7 +17,7 @@ class Client:
         try:
             self.s.connect((self.SERVER_HOST, self.SERVER_PORT))
             self.s.send(pickle.dumps([self.name, "command:start", datetime.now()]))
-            self.chat.text_main = f'''{pickle.loads(self.s.recv(1025))[1]}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
+            self.chat.text_main = f'''{pickle.loads(self.s.recv(1024*1024*8))[1]}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
 
         except Exception as error:
             self.chat.text_main += f'''<span style="color:green;">ERROR: {error}</span><br>'''
@@ -27,7 +27,7 @@ class Client:
         self.messages = []
         self.ts = []
         self.thr = True
-        self.thread_([self.send, self.listen])
+        self.thread_([self.send, self.listen1])
 
     def thread_(self, args):
         for arg in args:
@@ -38,12 +38,18 @@ class Client:
     def set_time(self, g):
         self.old_time = g
 
-    def listen(self):
+    def listen1(self):
         while self.thr:
-            get = pickle.loads(self.s.recv(1025))
-            print(get[0])
-            self.old_message = get[1]
-            self.set_time(get[2])
+            recv = self.s.recv(1024*1024*8)
+            get = pickle.loads(recv)
+            print(get)
+            if len(get) > 1:
+                print(get[0])
+                self.old_message = get[1]
+                self.set_time(get[2])
+            else:
+                self.chat.parent.tabled(get)
+
 
     def send(self):
         while self.thr:
@@ -150,7 +156,7 @@ class AdminWidget(QMainWindow):
         self.table = QTableWidget(self.widget_users)  # Create a table
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
-            ["id", "Имя", "Пароль", "Дата", "Данные"])
+            ["id", "IP-адрес", "порт", "Дата-подключения", "ХЗ"])
         self.table.verticalHeader().hide()
         self.table.resizeColumnsToContents()
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -240,6 +246,24 @@ class AdminWidget(QMainWindow):
             self.widget_characteristic.update_(self.users[index].characteristic)
             self.widget_users.hide()
 
+    def tabled(self, ls):
+        try:
+            self.table.show()
+        except:
+            return
+        currentRow, currentColumn = self.table.currentRow(), self.table.currentColumn()
+        ls = list(ls)
+        self.table.setRowCount(len(ls))
+        index = 0
+        for i in ls:
+            print(i)
+            self.table.setItem(index, 0, QTableWidgetItem(str(index)))
+            self.table.setItem(index, 1, QTableWidgetItem(str(i[0])))
+            self.table.setItem(index, 2, QTableWidgetItem(str(i[1])))
+            index += 1
+
+        self.table.setCurrentCell(currentRow, currentColumn)
+
     def update(self):
         if self.isHidden():
             return
@@ -323,6 +347,7 @@ class MyWidget(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.clicked = False
+        self.parent = args[0]
         self.text_main = ""
         self.client = Client(self)
         self.timer = QTimer()
