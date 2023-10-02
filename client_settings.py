@@ -24,14 +24,42 @@ from PyQt5.QtWebEngineWidgets import *
 from textRedactor import Ui_MainWindow
 
 
+base_style = """
+    QPushButton{border: 3px solid green; border-radius: 20px; margin: 10px 10px; background-color: rgb(0,0,0,0)}
+    QPushButton:hover{border: none; color: rgb(0,0,0); background-color: rgb(83,184,35, 190);}
+    QHeaderView::section { background-color: rgb(83,184,35); color: rgb(0,0,0); border: 2px solid rgb(0,0,0) }
+    QTreeView {border: 2px solid rgb(0,0,0)}
+    QLineEdit {border:3px solid rgb(83,184,35); color: rgb(83,184,35); border-radius: 20px;}
+
+    QListWidget::item:pressed,QListWidget::item:selected{background-color:rgb(83,184,35); color: rgb(0,0,0)}
+    QTableWidget::item:pressed,QTableWidget::item:selected{border:3px solid rgb(83,184,35); border-radius: 10px;color: rgb(83,184,35)}
+
+    QTreeView::item:pressed,QTreeView::item:selected{background-color:rgb(83,184,35); color: rgb(0,0,0)}
+    QTableWidget{alternate-background-color: rgba(15,15,15);}
+    QWidget {
+        background-color: rgb(0,0,0);
+        color: #fff;
+    }
+    QWidget{color: rgb(83,184,35);font-size: 30px;font-family: 'CatV 6x12 9'}
+"""
+
+
 style_but = '''
-        QPushButton{background-color: rgb(0,0,0,0)}
-        QPushButton:hover{border: none; color: rgb(0,0,0); background-color: rgb(83,184,35);}
+        QPushButton{border: none; border-radius: 0px; background-color: rgb(0,0,0,0)}
+        QPushButton:hover{border: none; border-radius: 0px; color: rgb(0,0,0); background-color: rgb(83,184,35);}
         '''
 style_but2 = '''
         QPushButton{background-color: rgb(0,0,0,0)}
         QPushButton:hover{border: none; color: rgb(0,0,0); background-color: rgb(83,184,35);}
         '''
+
+style_close = """QPushButton{border: none; background-color: rgb(83,184,35,0)}
+        QPushButton:hover{background-color: rgb(184,0,0); color: rgb(250,250,250); border: 0px;}"""
+style_close2 = """QPushButton{color: red; border: 3px solid rgb(184,0,0); background-color: rgb(83,184,35,0); border-radius: 20px}
+        QPushButton:hover{background-color: rgb(184,0,0); color: rgb(250,250,250); border: 0px;}"""
+style_add = """QPushButton{color: rgb(124,99,253); border: 3px solid rgb(104,79,243); background-color: rgb(83,184,35,0); border-radius: 20px}
+        QPushButton:hover{background-color: rgb(104,79,243); color: rgb(250,250,250); border: 0px;}"""
+
 
 errorFormat = '<font color="red">{}</font>'
 warningFormat = '<font color="orange">{}</font>'
