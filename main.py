@@ -1,19 +1,22 @@
 import socket
+import sys
 import time
 from threading import Thread
 import pickle
 import io
 import PIL.Image as Image
 from PIL import UnidentifiedImageError, ImageFile
+import psutil
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class Client:
-    def __init__(self, sock, cam_ip=""):
+    def __init__(self, sock, cam_port=""):
         self.sock = sock
-        self.cam_ip = cam_ip
+        self.cam_port = cam_port
         self.info = sock.getpeername()
-        print(self.info)
         self.ip, self.port = self.info
+        print(self.port)
 
 
 SERVER_HOST = "0.0.0.0"
@@ -29,20 +32,24 @@ s.listen(50)
 print(f"[*] Listening as {SERVER_HOST}:{SERVER_PORT}")
 sz = 1024*1024*10
 
+def get_temp():
+    return int(psutil.sensors_temperatures()["soc_thermal"][0].current)
+
 
 def q():
-    for cs.sock in client_sockets:
+    for cs in client_sockets:
         cs.sock.close()
 
     s.close()
     quit()
 
 
-def find_recp(ip):
+def find_recp(port):
     recps = []
     for i in client_sockets:
-        if i.cam_ip == ip:
+        if i.cam_port == str(port):
             recps.append(i)
+            break
     return recps
 
 
@@ -53,15 +60,14 @@ def listen(c):
         cs = c.sock
         try:
             dtb = cs.recv(sz)
-            try:
-                img = Image.open(io.BytesIO(dtb))
-                img = dtb
-            except UnidentifiedImageError:
-                msg = pickle.loads(dtb)
-        except Exception as e:
-            print(f"[!] Error: {e}")
+        except ConnectionResetError:
             client_sockets.remove(c)
+            c.sock.close()
             break
+        try:
+            msg = list(pickle.loads(dtb))
+        except Exception as error:
+            img = dtb
         sys_info = "____INFO____"
         if msg:
             spl = msg[1].split(':')
@@ -70,35 +76,40 @@ def listen(c):
             if len(spl) > 1 and spl[0] == "command":
                 if spl[1] == "start":
                     data_list[1] = DATA
-                    cs.send(pickle.dumps(data_list))
+                    cs.sendall(pickle.dumps(data_list))
                 elif spl[1] == "kill":
                     data_list[1] = "[*] Остановка сервера!"
-                    cs.send(pickle.dumps(data_list))
+                    cs.sendall(pickle.dumps(data_list))
                     q()
                 elif spl[1] == "setcam" and len(spl) > 2:
-                    ip = spl[2]
-                    data_list[1] = f"[*] Камера {ip} открыта!"
-                    c.cam_ip = ip
-                    cs.send(pickle.dumps(data_list))
+                    port = spl[2]
+                    data_list[1] = f"[*] Камера {port} открыта!"
+                    c.cam_port = port
+                    cs.sendall(pickle.dumps(data_list))
                 else:
                     data_list[1] = "[*] Команда не найдена!"
-                    cs.send(pickle.dumps(data_list))
+                    cs.sendall(pickle.dumps(data_list))
             else:
                 data_list[1] = ": ".join(msg[:-1])
                 DATA += f'{data_list[1]}<br>'
                 for client_socket in client_sockets:
                     client_socket.sock.send(pickle.dumps(data_list))
         elif img:
-            recipient = find_recp(c.ip)
+            recipient = find_recp(c.port)
             for r in recipient:
-                r.sock.sendall(img)
+                try:
+                    r.sock.sendall(img)
+                except ConnectionResetError:
+                    client_sockets.remove(c)
+                    c.sock.close()
+                    break
 
 
-def send(cs):
+def send_(cs):
     while True:
         try:
-            cs.sock.send(pickle.dumps([[c.info for c in client_sockets]]))
-            time.sleep(.5)
+            cs.sock.sendall(pickle.dumps([[c.info for c in client_sockets]]))
+            time.sleep(1)
         except Exception as e:
             pass
 
@@ -110,7 +121,7 @@ while check_run != "q":
     client_sockets.add(client_socket)
     t = Thread(target=listen, args=(client_socket,))
     t.start()
-    t2 = Thread(target=send, args=(client_socket,))
+    t2 = Thread(target=send_, args=(client_socket,))
     t2.start()
 
 for cs in client_sockets:

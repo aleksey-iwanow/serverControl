@@ -4,22 +4,19 @@ import io
 import PIL.Image as Image
 from PIL import UnidentifiedImageError, ImageFile
 from client_settings import *
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-# 5.187.79.226 192.168.0.246
+# 192.168.0.246  5.187.79.226 192.168.43.148
 class Client:
-    SERVER_HOST = "192.168.0.246"
+    SERVER_HOST = "5.187.79.226"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
     sz = 1024 * 1024 * 10
 
     def __init__(self, chat):
 
-        self.window = QLabel()
-        self.window.resize(700, 500)
-        self.window.show()
-
-        self.cam_port = 0
+        self.cam_port = 1
         self.cam = cv2.VideoCapture(self.cam_port)
         self.chat = chat
         self.s = socket.socket()
@@ -28,8 +25,8 @@ class Client:
         try:
             self.s.connect((self.SERVER_HOST, self.SERVER_PORT))
             self.s.send(pickle.dumps([self.name, "command:start", datetime.now()]))
-            l = pickle.loads(self.s.recv(self.sz))
-            self.chat.text_main = f'''{l[1] if len(l) > 1 else l}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
+            ll = pickle.loads(self.s.recv(self.sz))
+            self.chat.text_main = f'''{ll[1] if len(ll) > 1 else ''}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
 
         except Exception as error:
             self.chat.text_main += f'''<span style="color:green;">ERROR: {error}</span><br>'''
@@ -56,9 +53,13 @@ class Client:
             try:
                 img = Image.open(io.BytesIO(recv))
                 img.save(f'image1.png')
-                self.window.setPixmap(QPixmap('image1.png'))
+                pixmap = QPixmap('image1.png')
+                self.chat.parent.videowindow.setPixmap(pixmap.scaled(self.chat.parent.videowindow.width(), self.chat.parent.videowindow.height()))
             except UnidentifiedImageError:
-                get = pickle.loads(recv)
+                try:
+                    get = pickle.loads(recv)
+                except pickle.UnpicklingError:
+                    continue
                 if len(get) > 1:
                     self.old_message = get[1]
                     self.set_time(get[2])
@@ -78,8 +79,8 @@ class Client:
                 self.old_message = f'[*] установлено имя: {self.name}'
                 self.set_time(datetime.now())
             else:
-                date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.s.send(pickle.dumps([self.name, to_send, date_now]))
+                date_now = datetime.now()
+                self.s.sendall(pickle.dumps([self.name, to_send, str(date_now)]))
             time.sleep(.5)
 
     def send2(self):
@@ -179,6 +180,12 @@ class AdminWidget(QMainWindow):
         self.widget_users = QWidget(self)
         self.widget_CHAT = MyWidget(self)
         self.widget_descript = QWidget(self)
+
+        self.temp_label = QLabel(self.widget_descript)
+        self.temp_label.resize(200, 100)
+
+        self.videowindow = QLabel(self.widget_descript)
+        self.videowindow.move(10, 10)
 
         self.widget_characteristic = WidgetCharacteristic(self)
         self.widget_characteristic.button_back.clicked.connect(self.open_window_users)
@@ -346,6 +353,8 @@ class AdminWidget(QMainWindow):
         self.table.setColumnWidth(2, w_c)
         self.table.setColumnWidth(3, w_c)
         self.table.setColumnWidth(4, 160)
+
+        self.videowindow.resize(self.widget_descript.width() - 20, self.widget_descript.height() - 20)
 
         self.button_update.move(0, self.table.height() - 60)
         self.button_characteristic.move(self.button_update.width(), self.table.height() - 60)
