@@ -9,7 +9,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # 192.168.0.246  5.187.79.226 192.168.43.148
 class Client:
-    SERVER_HOST = "5.187.79.226"
+    SERVER_HOST = "192.168.0.19"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
     sz = 1024 * 1024 * 10

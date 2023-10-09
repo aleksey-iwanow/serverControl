@@ -67,12 +67,3 @@ validFormat = '<font color="green">{}</font>'
 darkgreenFormat = '<font color="#80CF0C";">{}</font>'
 whiteFormat = '<font color="#A1A1A1">{}</font>'
 titleFormat = '<font style="color:#010101; background-color: #1F4D3C">{}</font>'
-
-
-class ClickedLabel(QLabel):
-    clicked = pyqtSignal()
-
-    def mouseReleaseEvent(self, e):
-        super().mouseReleaseEvent(e)
-
-        self.clicked.emit()
