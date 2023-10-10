@@ -67,6 +67,7 @@ def listen(c):
         try:
             msg = list(pickle.loads(dtb))
         except Exception as error:
+            print(error)
             img = dtb
         sys_info = "____INFO____"
         if msg:
@@ -98,7 +99,10 @@ def listen(c):
             recipient = find_recp(c.port)
             for r in recipient:
                 try:
-                    r.sock.sendall(img)
+                    try:
+                        r.sock.sendall(img)
+                    except OSError:
+                        continue
                 except ConnectionResetError:
                     client_sockets.remove(c)
                     c.sock.close()

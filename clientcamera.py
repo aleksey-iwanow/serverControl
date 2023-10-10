@@ -1,5 +1,6 @@
 import pickle
 import socket
+import time
 from datetime import datetime
 from threading import Thread
 import cv2
@@ -8,9 +9,9 @@ from PIL import UnidentifiedImageError, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-# 192.168.0.246  5.187.79.226 192.168.43.148
+#   5.187.79.226 192.168.43.148
 class Client:
-    SERVER_HOST = "192.168.0.19"
+    SERVER_HOST = "5.187.79.226"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
     sz = 1024 * 1024 * 10
@@ -39,6 +40,7 @@ class Client:
                     self.s.sendall(data)
                     print("jns")
                     file.close()
+                    time.sleep(0.06)
         finally:
             self.s.close()
 

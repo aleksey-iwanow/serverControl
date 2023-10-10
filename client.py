@@ -9,15 +9,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # 192.168.0.246  5.187.79.226 192.168.43.148
 class Client:
-    SERVER_HOST = "192.168.0.19"
+    SERVER_HOST = "5.187.79.226"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
     sz = 1024 * 1024 * 10
 
     def __init__(self, chat):
-
-        self.cam_port = 1
-        self.cam = cv2.VideoCapture(self.cam_port)
         self.chat = chat
         self.s = socket.socket()
         self.chat.text_main = f'''<span style="color:green;">[*] Connecting to {self.SERVER_HOST}:{self.SERVER_PORT}...</span><br>'''
@@ -58,13 +55,15 @@ class Client:
             except UnidentifiedImageError:
                 try:
                     get = pickle.loads(recv)
-                except pickle.UnpicklingError:
+                except Exception as er:
                     continue
-                if len(get) > 1:
-                    self.old_message = get[1]
-                    self.set_time(get[2])
-                else:
-                    self.chat.parent.tabled(get[0])
+                if type(get) == list:
+                    if len(get) > 1:
+                        self.old_message = get[1]
+                        self.set_time(get[2])
+                    else:
+                        self.chat.parent.tabled(get[0])
+            time.sleep(.07)
 
     def send(self):
         while self.thr:
@@ -85,19 +84,9 @@ class Client:
 
     def send2(self):
         while self.thr:
-            result, image = self.cam.read()
-
-            if result:
-                # pyautogui.screenshot('image_server.png')
-                cv2.imwrite("image_server.png", image)
-                im = Image.open("image_server.png")
-                im2 = im.resize((240, 180))
-                im2.save('image_server.png')
-                file = open('image_server.png', mode="rb")
-
-                data = file.read(self.sz)
-                self.s.sendall(data)
-                file.close()
+            data = "".encode()
+            self.s.sendall(data)
+            time.sleep(.5)
 
 
 class WidgetCharacteristic(QWidget):
