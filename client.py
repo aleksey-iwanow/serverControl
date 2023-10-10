@@ -63,7 +63,7 @@ class Client:
                         self.set_time(get[2])
                     else:
                         self.chat.parent.tabled(get[0])
-            time.sleep(.07)
+            time.sleep(.5)
 
     def send(self):
         while self.thr:
@@ -86,7 +86,7 @@ class Client:
         while self.thr:
             data = "".encode()
             self.s.sendall(data)
-            time.sleep(.5)
+            time.sleep(.1)
 
 
 class WidgetCharacteristic(QWidget):

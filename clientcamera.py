@@ -40,7 +40,7 @@ class Client:
                     self.s.sendall(data)
                     print("jns")
                     file.close()
-                    time.sleep(0.06)
+                    time.sleep(0.1)
         finally:
             self.s.close()
 

@@ -2,7 +2,6 @@ import socket
 import random
 from threading import Thread
 from datetime import datetime
-import platform, socket, re, uuid, json, psutil, logging
 import os
 from PyQt5.QtWidgets import QGraphicsColorizeEffect
 import subprocess as sp
@@ -20,7 +19,6 @@ import ctypes
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
-from PyQt5.QtWebEngineWidgets import *
 import cv2
 
 
