@@ -1,29 +1,44 @@
 import time
+from vidstream import *
 import pickle
 import io
 import PIL.Image as Image
+import numpy as np
 from PIL import UnidentifiedImageError, ImageFile
 from client_settings import *
+import getpass
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-# 192.168.0.246  5.187.79.226 192.168.43.148
+def get_none(num):
+    return [None for a in range(num)]
+
+
+#  5.187.79.226 192.168.0.83 192.168.43.148
 class Client:
     SERVER_HOST = "5.187.79.226"
     SERVER_PORT = 5011
     separator_token = "<SEP>"
-    sz = 1024 * 1024 * 10
+    sz = 1024 * 1024 * 8 * 24
 
     def __init__(self, chat):
         self.chat = chat
         self.s = socket.socket()
+        self.window = QLabel()
+        self.window.resize(320, 240)
+        self.window.show()
         self.chat.text_main = f'''<span style="color:green;">[*] Connecting to {self.SERVER_HOST}:{self.SERVER_PORT}...</span><br>'''
-        self.name = "none"
+        self.name = str(getpass.getuser())
         try:
             self.s.connect((self.SERVER_HOST, self.SERVER_PORT))
-            self.s.send(pickle.dumps([self.name, "command:start", datetime.now()]))
-            ll = pickle.loads(self.s.recv(self.sz))
-            self.chat.text_main = f'''{ll[1] if len(ll) > 1 else ''}{self.chat.text_main}<span style="color:green;">[+] Connected.<br>Enter your name: </span><br>'''
+            self.s.sendall("client".encode('utf-8'))
+            time.sleep(0.1)
+            self.s.sendall(pickle.dumps([self.name, "command:start", datetime.now()]))
+            recv = pickle.loads(self.s.recv(self.sz))
+            print(recv)
+            self.ip, self.port = recv[3]
+            print(self.ip, self.port)
+            self.chat.text_main = f'''{recv[1] if len(recv) > 1 else ''}{self.chat.text_main}<span style="color:green;">[+] Connected.</span><br>'''
 
         except Exception as error:
             self.chat.text_main += f'''<span style="color:green;">ERROR: {error}</span><br>'''
@@ -33,7 +48,10 @@ class Client:
         self.messages = []
         self.ts = []
         self.thr = True
-        self.thread_([self.send, self.listen1, self.send2])
+        t = Thread(target=self.listen1)
+        t.start()
+        t1 = Thread(target=self.send)
+        t1.start()
 
     def thread_(self, args):
         for arg in args:
@@ -45,25 +63,29 @@ class Client:
         self.old_time = g
 
     def listen1(self):
-        while self.thr:
-            recv = self.s.recv(self.sz)
+        while 1:
+            frame_data = self.s.recv(self.sz)
             try:
-                img = Image.open(io.BytesIO(recv))
+                IMAGE_SIZE = 105000
+                img1 = Image.open(io.BytesIO(frame_data))
+                while len(frame_data) < IMAGE_SIZE:
+                    frame_data += self.s.recv(self.sz)
+                img = Image.open(io.BytesIO(frame_data))
                 img.save(f'image1.png')
-                pixmap = QPixmap('image1.png')
-                self.chat.parent.videowindow.setPixmap(pixmap.scaled(self.chat.parent.videowindow.width(), self.chat.parent.videowindow.height()))
+                p = QPixmap(f'image1.png').scaled(self.window.width(), self.window.height())
+                self.window.setPixmap(p)
             except UnidentifiedImageError:
                 try:
+                    recv = frame_data
                     get = pickle.loads(recv)
-                except Exception as er:
-                    continue
-                if type(get) == list:
                     if len(get) > 1:
                         self.old_message = get[1]
                         self.set_time(get[2])
                     else:
+                        print(get)
                         self.chat.parent.tabled(get[0])
-            time.sleep(.5)
+                except Exception as ex:
+                    print(ex)
 
     def send(self):
         while self.thr:
@@ -71,6 +93,7 @@ class Client:
                 continue
             self.chat.clicked = False
             to_send = self.chat.lineEdit.text()
+
             if to_send.lower() == 'q':
                 break
             if self.name == "none":
@@ -81,12 +104,6 @@ class Client:
                 date_now = datetime.now()
                 self.s.sendall(pickle.dumps([self.name, to_send, str(date_now)]))
             time.sleep(.5)
-
-    def send2(self):
-        while self.thr:
-            data = "".encode()
-            self.s.sendall(data)
-            time.sleep(.1)
 
 
 class WidgetCharacteristic(QWidget):
@@ -149,6 +166,84 @@ class WidgetCharacteristic(QWidget):
         self.button_back.move(0, self.table.height() - 60)
 
 
+class Settings(QWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(args[0])
+        self.block1 = Block
+        self.block1 = Block(self)
+        self.block1.set_panels([QSettingsPanel(self.block1, "1button", "display on/off", 60),
+                                QSettingsPanel(self.block1, "1button", "reboot", 60),
+                                QSettingsPanel(self.block1, "default", "info", 100)])
+
+    def res(self, size):
+        self.resize(size)
+        self.block1.res(QSize(size.width()-100, 200))
+
+
+class Block(QGroupBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(args[0])
+        self.move(50, 23)
+        self.panels = []
+        self.setTitle('Информация')
+        self.setObjectName("block1")
+        self.setStyleSheet("""
+            QGroupBox#block1 {
+                border: 3px solid green;
+                border-radius: 20px;
+            }
+        """)
+        self.px = 10
+        self.py = 30
+
+    def set_panels(self, panels):
+        self.panels = panels
+
+    def res(self, size):
+        self.resize(size.width(), 0)
+        if self.panels:
+            for i in range(len(self.panels)):
+                p = self.panels[i]
+                p.resize(self.width()-self.px*2, p.height())
+                p.move(self.px, (self.panels[i - 1].y() + self.panels[i - 1].height() if i > 0 else self.py))
+
+        self.resize(size.width(), self.panels[-1].y() + self.panels[-1].height() + self.px)
+
+
+class QSettingsPanel(QWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(args[0])
+        self.win = args[0]
+        self.text = QLabel(self)
+        self.text.move(0, 0)
+        self.resize(0, args[3])
+        self.value = args[1]
+        self.edit, self.button = get_none(2)
+        if self.value == "2button":
+            self.edit = QTextEdit(self)
+        elif self.value == "1button":
+            self.button = QPushButton(self)
+        else:
+            self.edit = QTextEdit(self)
+        if len(args) > 2:
+            self.set_text(args[2])
+
+    def set_text(self, txt):
+        self.text.setText(txt)
+
+    def get_value(self):
+        pass
+
+    def resizeEvent(self, event):
+        self.text.resize(self.width() // 2, self.height())
+        if self.edit:
+            self.edit.resize(self.width() // 2, self.height())
+            self.edit.move(self.width() // 2, 0)
+        if self.button:
+            self.button.resize(self.height(), self.height())
+            self.button.move(self.width() - self.height(), 0)
+
+
 class AdminWidget(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -170,11 +265,7 @@ class AdminWidget(QMainWindow):
         self.widget_CHAT = MyWidget(self)
         self.widget_descript = QWidget(self)
 
-        self.temp_label = QLabel(self.widget_descript)
-        self.temp_label.resize(200, 100)
-
-        self.videowindow = QLabel(self.widget_descript)
-        self.videowindow.move(10, 10)
+        self.settings = Settings(self.widget_descript)
 
         self.widget_characteristic = WidgetCharacteristic(self)
         self.widget_characteristic.button_back.clicked.connect(self.open_window_users)
@@ -245,14 +336,13 @@ class AdminWidget(QMainWindow):
         self.server.ftp_send("data_ad.db")'''
         self.update()
 
-
     def buttons_init(self):
         self.button_users = QPushButton(self)
         self.button_chat = QPushButton(self)
         self.button_descript = QPushButton(self)
         self.button_users.setText("Пользователи")
         self.button_chat.setText("Чатик")
-        self.button_descript.setText("О приложении")
+        self.button_descript.setText("Настройки")
 
         self.number_buttons = 3
 
@@ -282,7 +372,6 @@ class AdminWidget(QMainWindow):
         self.table.setRowCount(len(ls))
         index = 0
         for i in ls:
-            print(i)
             self.table.setItem(index, 0, QTableWidgetItem(str(index)))
             self.table.setItem(index, 1, QTableWidgetItem(str(i[0])))
             self.table.setItem(index, 2, QTableWidgetItem(str(i[1])))
@@ -332,6 +421,7 @@ class AdminWidget(QMainWindow):
         self.widget_CHAT.move(0, h)
         self.widget_descript.resize(self.width(), self.height() - h)
         self.widget_descript.move(0, h)
+        self.settings.res(self.widget_descript.size())
         self.widget_characteristic.resize(self.width(), self.height() - h)
         self.widget_characteristic.move(0, h)
         self.table.resize(self.widget_users.width() - 40, self.widget_users.height() - 40)
@@ -342,8 +432,6 @@ class AdminWidget(QMainWindow):
         self.table.setColumnWidth(2, w_c)
         self.table.setColumnWidth(3, w_c)
         self.table.setColumnWidth(4, 160)
-
-        self.videowindow.resize(self.widget_descript.width() - 20, self.widget_descript.height() - 20)
 
         self.button_update.move(0, self.table.height() - 60)
         self.button_characteristic.move(self.button_update.width(), self.table.height() - 60)
@@ -406,7 +494,6 @@ class MyWidget(QWidget):
         self.pushButtonEnter.show()
         self.lineEdit.show()
         self.textEdit.show()
-        self.textEdit.setPlaceholderText("Hello ЁпTa")
         self.label.show()
 
         self.label.move(10, 10)

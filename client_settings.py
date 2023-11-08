@@ -28,7 +28,8 @@ base_style = """
     QHeaderView::section { background-color: rgb(83,184,35); color: rgb(0,0,0); border: 2px solid rgb(0,0,0) }
     QTreeView {border: 2px solid rgb(0,0,0)}
     QLineEdit {border:3px solid rgb(83,184,35); color: rgb(83,184,35); border-radius: 20px;}
-
+    QTextEdit {border:3px solid rgb(83,184,35); color: rgb(83,184,35); border-radius: 10px;}
+    
     QListWidget::item:pressed,QListWidget::item:selected{background-color:rgb(83,184,35); color: rgb(0,0,0)}
     QTableWidget::item:pressed,QTableWidget::item:selected{border:3px solid rgb(83,184,35); border-radius: 10px;color: rgb(83,184,35)}
 
@@ -39,6 +40,7 @@ base_style = """
         color: #fff;
     }
     QWidget{color: rgb(83,184,35);font-size: 30px;font-family: 'CatV 6x12 9'}
+    QLabel{color: rgb(83,184,35);font-size: 30px;font-family: 'CatV 6x12 9'}
 """
 
 

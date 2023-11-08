@@ -1,12 +1,10 @@
-import socket
-import sys
-import time
+import struct
 from threading import Thread
+import socket
+import time
 import pickle
-import io
-import PIL.Image as Image
+import numpy as np
 from PIL import UnidentifiedImageError, ImageFile
-import psutil
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
@@ -15,120 +13,136 @@ class Client:
         self.sock = sock
         self.cam_port = cam_port
         self.info = sock.getpeername()
+        self.frame_data = b''
         self.ip, self.port = self.info
         print(self.port)
 
 
-SERVER_HOST = "0.0.0.0"
-SERVER_PORT = 5011
-DATA = '<span style="color:green;">START CHAT</span><br><br>'
-separator_token = "<SEP>"
-client_sockets = set()
-check_run = "run"
-s = socket.socket()
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind((SERVER_HOST, SERVER_PORT))
-s.listen(50)
-print(f"[*] Listening as {SERVER_HOST}:{SERVER_PORT}")
-sz = 1024*1024*10
+class Server:
+    SERVER_HOST = "0.0.0.0"
+    SERVER_PORT = 5011
+    separator_token = "<SEP>"
+    sz = 1024*1024*8 * 24
 
-def get_temp():
-    return int(psutil.sensors_temperatures()["soc_thermal"][0].current)
+    def __init__(self):
+        self.DATA = '<span style="color:green;">START CHAT</span><br><br>'
+        self.client_sockets = set()
+        self.audio_text = "привет"
 
+        self.cameras = []
+        self.clients = []
+        self.data = b''
+        self.payload_size = struct.calcsize("L")
+        self.check_run = "run"
+        self.s = socket.socket()
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.s.bind((self.SERVER_HOST, self.SERVER_PORT))
+        self.s.listen(50)
+        print(f"[*] Listening as {self.SERVER_HOST}:{self.SERVER_PORT}")
+        self.update_server()
 
-def q():
-    for cs in client_sockets:
-        cs.sock.close()
+    def q(self):
+        for cs in self.client_sockets:
+            cs.sock.close()
+        self.s.close()
+        quit()
 
-    s.close()
-    quit()
+    def camera(self, c):
+        while True:
+            conn = c.sock
+            IMAGE_SIZE = 105000
+            try:
+                c.frame_data = b''
+                while len(c.frame_data) < IMAGE_SIZE:
+                    c.frame_data += conn.recv(self.sz)
+                recipient = self.find_recp(c.port)
+                for r in recipient:
+                    print(len(c.frame_data))
+                    r.sock.sendall(c.frame_data)
+            except ConnectionResetError:
+                self.client_sockets.remove(c)
+                self.cameras.remove(c)
+                c.sock.close()
+                break
 
+    def update_server(self):
+        while self.check_run != "q":
+            client_socket, client_address = self.s.accept()
+            print(f"[+] {client_address} connected.")
+            recv = client_socket.recv(1024).decode('utf-8')
+            client_socket = Client(client_socket)
+            self.client_sockets.add(client_socket)
+            if recv == "client":
+                self.clients.append(client_socket)
+                t = Thread(target=self.listen, args=(client_socket,))
+                t.start()
+            elif recv == "camera":
+                self.cameras.append(client_socket)
+                t = Thread(target=self.camera, args=(client_socket,))
+                t.start()
+            t2 = Thread(target=self.send_, args=(client_socket,))
+            t2.start()
 
-def find_recp(port):
-    recps = []
-    for i in client_sockets:
-        if i.cam_port == str(port):
-            recps.append(i)
-            break
-    return recps
+    def find_recp(self, port):
+        recps = []
+        for i in self.client_sockets:
+            if i.cam_port == str(port):
+                recps.append(i)
+                break
+        return recps
 
+    def listen(self, c):
+        while True:
+            msg, img = None, None
+            cs = c.sock
+            try:
+                dtb = cs.recv(self.sz)
+            except ConnectionResetError:
+                self.clients.remove(c)
+                self.client_sockets.remove(c)
+                c.sock.close()
+                break
+            try:
+                msg = list(pickle.loads(dtb))
+            except Exception as error:
+                print(error)
+            sys_info = "____INFO____"
+            if msg:
+                spl = msg[1].split(':')
+                data_list = [sys_info, "", msg[2], c.info]
 
-def listen(c):
-    global DATA, check_run
-    while True:
-        msg, img = None, None
-        cs = c.sock
-        try:
-            dtb = cs.recv(sz)
-        except ConnectionResetError:
-            client_sockets.remove(c)
-            c.sock.close()
-            break
-        try:
-            msg = list(pickle.loads(dtb))
-        except Exception as error:
-            print(error)
-            img = dtb
-        sys_info = "____INFO____"
-        if msg:
-            spl = msg[1].split(':')
-            data_list = [sys_info, "", msg[2]]
-
-            if len(spl) > 1 and spl[0] == "command":
-                if spl[1] == "start":
-                    data_list[1] = DATA
-                    cs.sendall(pickle.dumps(data_list))
-                elif spl[1] == "kill":
-                    data_list[1] = "[*] Остановка сервера!"
-                    cs.sendall(pickle.dumps(data_list))
-                    q()
-                elif spl[1] == "setcam" and len(spl) > 2:
-                    port = spl[2]
-                    data_list[1] = f"[*] Камера {port} открыта!"
-                    c.cam_port = port
-                    cs.sendall(pickle.dumps(data_list))
+                if len(spl) > 1 and spl[0] == "command":
+                    if spl[1] == "start":
+                        data_list[1] = self.DATA
+                        cs.sendall(pickle.dumps(data_list))
+                    elif spl[1] == "kill":
+                        data_list[1] = "[*] Остановка сервера!"
+                        cs.sendall(pickle.dumps(data_list))
+                        self.q()
+                    elif spl[1] == "setcam" and len(spl) > 2:
+                        port = spl[2]
+                        data_list[1] = f"[*] Камера {port} открыта!"
+                        c.cam_port = port
+                        cs.sendall(pickle.dumps(data_list))
+                    elif spl[1] == "a" and len(spl) > 2:
+                        print(spl[2])
+                    else:
+                        data_list[1] = "[*] Команда не найдена!"
+                        cs.sendall(pickle.dumps(data_list))
                 else:
-                    data_list[1] = "[*] Команда не найдена!"
-                    cs.sendall(pickle.dumps(data_list))
-            else:
-                data_list[1] = ": ".join(msg[:-1])
-                DATA += f'{data_list[1]}<br>'
-                for client_socket in client_sockets:
-                    client_socket.sock.send(pickle.dumps(data_list))
-        elif img:
-            recipient = find_recp(c.port)
-            for r in recipient:
-                try:
-                    try:
-                        r.sock.sendall(img)
-                    except OSError:
-                        continue
-                except ConnectionResetError:
-                    client_sockets.remove(c)
-                    c.sock.close()
-                    break
+                    data_list[1] = ": ".join(msg[:-1])
+                    self.DATA += f'{data_list[1]}<br>'
+                    for client_socket in self.clients:
+                        client_socket.sock.send(pickle.dumps(data_list))
+
+    def send_(self, cs):
+        time.sleep(1)
+        while True:
+            try:
+                cs.sock.send(pickle.dumps([[c.info for c in self.client_sockets]]))
+                time.sleep(0.1)
+            except Exception as e:
+                pass
 
 
-def send_(cs):
-    while True:
-        try:
-            cs.sock.sendall(pickle.dumps([[c.info for c in client_sockets]]))
-            time.sleep(1)
-        except Exception as e:
-            pass
-
-
-while check_run != "q":
-    client_socket, client_address = s.accept()
-    print(f"[+] {client_address} connected.")
-    client_socket = Client(client_socket)
-    client_sockets.add(client_socket)
-    t = Thread(target=listen, args=(client_socket,))
-    t.start()
-    t2 = Thread(target=send_, args=(client_socket,))
-    t2.start()
-
-for cs in client_sockets:
-    cs.close()
-
-s.close()
+s = Server()
